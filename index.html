@@ -1,0 +1,729 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MTA New York City Subway Router</title>
+    <style>
+        body {
+            font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+            margin: 0;
+            padding: 40px 20px;
+            background: #202020;
+            color: #FFFFFF;
+        }
+
+        .modal-overlay {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.85);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            transition: opacity 0.3s ease;
+        }
+        .modal-card {
+            background: #111111;
+            border: 3px solid #FCCC0A;
+            padding: 30px;
+            border-radius: 12px;
+            max-width: 450px;
+            width: 90%;
+            text-align: center;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+        }
+        .modal-card h3 {
+            margin-top: 0;
+            color: #FCCC0A;
+            font-size: 24px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        .modal-card p {
+            color: #CCCCCC;
+            line-height: 1.6;
+            font-size: 15px;
+            text-align: left;
+            margin: 20px 0;
+        }
+        .modal-btn {
+            background: #FCCC0A;
+            color: #000000;
+            border: none;
+            padding: 12px 30px;
+            font-weight: bold;
+            font-size: 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            text-transform: uppercase;
+            transition: background 0.2s;
+        }
+        .modal-btn:hover { background: #E6B800; }
+
+        .dashboard {
+            background: #111111;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+            max-width: 550px;
+            margin: 0 auto;
+            border-top: 6px solid #808183;
+        }
+
+        .header-container {
+            display: flex;
+            align-items: center;
+            border-bottom: 2px solid #333333;
+            padding-bottom: 15px;
+            margin-bottom: 25px;
+        }
+        .mta-logo {
+            background: #FCCC0A;
+            color: #000000;
+            font-weight: 900;
+            font-size: 20px;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-right: 15px;
+            flex-shrink: 0;
+        }
+        h2 { margin: 0; font-size: 22px; font-weight: bold; letter-spacing: -0.5px; }
+
+        label {
+            display: block;
+            margin-top: 18px;
+            font-weight: bold;
+            font-size: 12px;
+            color: #AAAAAA;
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+        }
+
+        .search-wrapper {
+            position: relative;
+            margin-top: 6px;
+        }
+        .search-input {
+            width: 100%;
+            padding: 12px;
+            border-radius: 4px;
+            border: 2px solid #333333;
+            font-size: 16px;
+            box-sizing: border-box;
+            background: #222222;
+            color: white;
+            transition: border-color 0.2s;
+        }
+        .search-input:focus { border-color: #00933C; outline: none; }
+        .search-input.has-selection { border-color: #00933C; }
+
+        .dropdown-list {
+            position: absolute;
+            top: 100%; left: 0; right: 0;
+            background: #1a1a1a;
+            border: 2px solid #00933C;
+            border-top: none;
+            border-radius: 0 0 4px 4px;
+            max-height: 230px;
+            overflow-y: auto;
+            z-index: 500;
+            display: none;
+        }
+        .dropdown-list::-webkit-scrollbar { width: 6px; }
+        .dropdown-list::-webkit-scrollbar-track { background: #1a1a1a; }
+        .dropdown-list::-webkit-scrollbar-thumb { background: #444; border-radius: 3px; }
+
+        .dropdown-item {
+            padding: 10px 14px;
+            cursor: pointer;
+            font-size: 14px;
+            color: #CCCCCC;
+            border-bottom: 1px solid #2a2a2a;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .dropdown-item:last-child { border-bottom: none; }
+        .dropdown-item:hover { background: #2a2a2a; color: #FFFFFF; }
+
+        .dropdown-item .line-pill {
+            min-width: 28px;
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            font-size: 12px;
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+        .dropdown-item .station-name { flex: 1; }
+        .dropdown-item .station-code {
+            color: #555;
+            font-size: 11px;
+            flex-shrink: 0;
+        }
+
+        .selected-tag {
+            margin-top: 5px;
+            font-size: 12px;
+            color: #666666;
+            min-height: 16px;
+            padding-left: 2px;
+        }
+        .selected-tag .confirmed {
+            color: #00933C;
+            font-weight: bold;
+        }
+
+        .swap-row {
+            display: flex;
+            justify-content: center;
+            margin-top: 14px;
+        }
+        .swap-btn {
+            background: none;
+            border: 1px solid #444;
+            color: #888888;
+            padding: 6px 20px;
+            border-radius: 20px;
+            cursor: pointer;
+            font-size: 13px;
+            transition: all 0.2s;
+            letter-spacing: 0.3px;
+        }
+        .swap-btn:hover {
+            border-color: #00933C;
+            color: #FFFFFF;
+            background: rgba(0,147,60,0.1);
+        }
+
+        .action-btn {
+            background: #00933C;
+            color: white;
+            border: none;
+            padding: 15px;
+            width: 100%;
+            font-size: 16px;
+            font-weight: bold;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-top: 24px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            transition: background 0.2s;
+        }
+        .action-btn:hover { background: #007A32; }
+
+        .itinerary-header {
+            margin-top: 28px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid #2a2a2a;
+            display: none;
+        }
+        .itinerary-header .route-title {
+            font-size: 11px;
+            font-weight: bold;
+            text-transform: uppercase;
+            color: #FCCC0A;
+            letter-spacing: 1px;
+        }
+        .itinerary-header .route-meta {
+            font-size: 13px;
+            color: #888888;
+            margin-top: 4px;
+        }
+        .route-meta strong { color: #CCCCCC; }
+
+        .timeline {
+            margin-top: 16px;
+            position: relative;
+        }
+        .timeline::before {
+            content: '';
+            position: absolute;
+            left: 17px;
+            top: 13px;
+            width: 4px;
+            height: calc(100% - 38px);
+            background: #333333;
+            z-index: 1;
+            border-radius: 2px;
+        }
+        .timeline-item {
+            position: relative;
+            margin-bottom: 28px;
+            display: flex;
+            align-items: flex-start;
+            padding-left: 55px;
+        }
+        .line-badge {
+            position: absolute;
+            left: 4px;
+            top: 0px;
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            font-weight: bold;
+            font-size: 11px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.4);
+            z-index: 2;
+            flex-shrink: 0;
+            overflow: hidden;
+        }
+        .station-details {
+            font-size: 15px;
+            font-weight: bold;
+            color: #FFFFFF;
+            line-height: 1.4;
+            word-break: break-word;
+            overflow-wrap: break-word;
+        }
+        .station-status {
+            font-size: 11px;
+            color: #777777;
+            margin-top: 3px;
+            text-transform: uppercase;
+            font-weight: normal;
+            letter-spacing: 0.5px;
+        }
+        .station-status.boarding    { color: #00933C; }
+        .station-status.destination { color: #FCCC0A; }
+
+        .transfer-row {
+            position: relative;
+            z-index: 3;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding-left: 55px;
+            margin: -14px 0 14px;
+            font-size: 11px;
+            color: #FCCC0A;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .transfer-pill {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            font-size: 10px;
+            font-weight: bold;
+            flex-shrink: 0;
+            overflow: hidden;
+        }
+
+        .loading-box {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 20px 0;
+            color: #FCCC0A;
+            font-size: 14px;
+        }
+        .spinner {
+            width: 20px; height: 20px;
+            border: 3px solid #333;
+            border-top-color: #FCCC0A;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            flex-shrink: 0;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        .error-box {
+            background: #3a1c1c;
+            border-left: 4px solid #EE352E;
+            padding: 15px;
+            border-radius: 4px;
+            color: #ffb3b3;
+            margin-top: 20px;
+            font-size: 14px;
+        }
+
+        .no-results {
+            padding: 10px 14px;
+            font-size: 13px;
+            color: #666;
+            font-style: italic;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="modal-overlay" id="welcomeModal">
+        <div class="modal-card">
+            <h3>MTA Route Planner</h3>
+            <p>
+                Search for any station by <b>name</b> in both fields below.<br><br>
+                Then hit <b>Find Optimal Path</b> to get your trip itinerary.
+            </p>
+            <button class="modal-btn" onclick="closeModal()">Let's Go</button>
+        </div>
+    </div>
+
+    <!-- Main Card -->
+    <div class="dashboard">
+        <div class="header-container">
+            <div class="mta-logo">MTA</div>
+            <h2>Transit Authority Route Optimizer</h2>
+        </div>
+
+        <label for="startSearch">Origin Station</label>
+        <div class="search-wrapper">
+            <input class="search-input" id="startSearch" type="text"
+                   placeholder="e.g. Times Square, Atlantic Av…" autocomplete="off">
+            <div class="dropdown-list" id="startDropdown"></div>
+        </div>
+        <div class="selected-tag" id="startTag">Start typing to search</div>
+
+        <div class="swap-row">
+            <button class="swap-btn" onclick="swapStations()">↕ Swap</button>
+        </div>
+
+        <label for="endSearch">Destination Station</label>
+        <div class="search-wrapper">
+            <input class="search-input" id="endSearch" type="text"
+                   placeholder="e.g. Coney Island, Jamaica Center…" autocomplete="off">
+            <div class="dropdown-list" id="endDropdown"></div>
+        </div>
+        <div class="selected-tag" id="endTag">Start typing to search</div>
+
+        <button class="action-btn" onclick="processRouteLookup()">Find Optimal Path</button>
+
+        <div class="itinerary-header" id="itineraryHeader">
+            <div class="route-title">Routing Overview</div>
+            <div class="route-meta" id="routeMeta"></div>
+        </div>
+        <div id="routeDisplayOutput"></div>
+    </div>
+
+    <script>
+        const mtaColors = {
+            'A': '#0039A6', 'C': '#0039A6', 'E': '#0039A6',
+            'B': '#FF6319', 'D': '#FF6319', 'M': '#FF6319', 'F': '#FF6319',
+            'G': '#6CBE45',
+            'L': '#A7A9AC',
+            'J': '#996633', 'Z': '#996633',
+            'N': '#FCCC0A', 'Q': '#FCCC0A', 'R': '#FCCC0A', 'W': '#FCCC0A',
+            '1': '#EE352E', '2': '#EE352E', '3': '#EE352E',
+            '4': '#00933C', '5': '#00933C', '6': '#00933C',
+            '7': '#B933AD',
+            'T': '#00ADD0',
+            'S': '#808183',
+            'TRANSFER': '#808183'
+        };
+
+        
+        const lineToToken = {
+            'Broadway':         '1',
+            'WPR':              '2',
+            'Lenox':            '3',
+            'Lenox Term':       '3',
+            'Clark St':         '3',
+            'E Parkway':        '4',
+            'Nostrand':         '5',
+            'Livonia':          '5',
+            'Dyre':             '5',
+            'Pelham':           '6',
+            'Flushing':         '7',
+            '42 St Shuttle':    'S',
+            'Wash Hts':         'A',
+            'CPW':              'A',
+            'Cranberry':        'A',
+            'Fulton St':        'A',
+            'Lefferts':         'A',
+            'Rockaway':         'A',
+            '63 St':            'B',
+            '6 Av':             'F',
+            'Houston':          'F',
+            'Prospect Pk':      'F',
+            'Culver':           'F',
+            'Hillside':         'F',
+            'Queens':           'F',
+            'Archer Av':        'Z',
+            'Jerome':           '4',
+            'Concourse':        'D',
+            'Brighton':         'Q',
+            'CI Terminal':      'Q',
+            'Sea Beach':        'N',
+            'West End':         'D',
+            '53 St':            'E',
+            'Lexington':        '6',
+            '14 St':            'L',
+            'Crosstown':        'G',
+            'Myrtle':           'M',
+            'Broadway':         'J',
+            'Nassau St':        'J',
+            '4 Av':             'R',
+            'Montague':         'R',
+            'Astoria':          'N',
+            '60 St':            'N',
+            'Jamaica':          'J',
+            '8 Av':             'C',
+            '8 Av-WTC':         'E',
+            'Franklin S':       'S',
+            'Canarsie':         'L',
+            'TRANSFER':         'T'
+        };
+
+        const stationData = {};
+
+        fetch('/api/stations')
+            .then(r => r.json())
+            .then(data => Object.assign(stationData, data))
+            .catch(() => console.warn('Could not load station data — is the Java server running?'));
+
+        let selectedStart = null;
+        let selectedEnd   = null;
+
+        function closeModal() {
+            const modal = document.getElementById('welcomeModal');
+            modal.style.opacity = '0';
+            setTimeout(() => modal.style.display = 'none', 300);
+        }
+
+        function getToken(lineStr) {
+            const trimmed = (lineStr || '').trim();
+            return lineToToken[trimmed] || trimmed.split(' ')[0].substring(0, 2) || 'S';
+        }
+
+        function getBgColor(token) {
+            return mtaColors[token] || '#808183';
+        }
+
+        function getTextColor(token) {
+            return ['N', 'Q', 'R', 'W'].includes(token) ? '#000000' : '#FFFFFF';
+        }
+
+        function buildDropdown(query, dropdownId, onSelect) {
+            const dropdown = document.getElementById(dropdownId);
+            dropdown.innerHTML = '';
+
+            if (!query || query.length < 1) {
+                dropdown.style.display = 'none';
+                return;
+            }
+
+            const q = query.toLowerCase();
+            const matches = Object.entries(stationData)
+                .filter(([code, s]) =>
+                    s.name.toLowerCase().includes(q) ||
+                    code.toLowerCase().startsWith(q) ||
+                    s.line.toLowerCase().includes(q)
+                )
+                .slice(0, 12);
+
+            if (matches.length === 0) {
+                dropdown.innerHTML = '<div class="no-results">No stations found</div>';
+                dropdown.style.display = 'block';
+                return;
+            }
+
+            matches.forEach(([code, s]) => {
+                const token   = getToken(s.line);
+                const bg      = getBgColor(token);
+                const fg      = getTextColor(token);
+
+                const item = document.createElement('div');
+                item.className = 'dropdown-item';
+                item.innerHTML = `
+                    <span class="line-pill" style="background:${bg}; color:${fg};">${token}</span>
+                    <span class="station-name">${s.name}</span>
+                    <span class="station-code">${code}</span>
+                `;
+                item.addEventListener('mousedown', e => {
+                    e.preventDefault();
+                    onSelect(code, s.name);
+                    dropdown.style.display = 'none';
+                });
+                dropdown.appendChild(item);
+            });
+
+            dropdown.style.display = 'block';
+        }
+
+        function wireSearch(inputId, dropdownId, tagId, setCode) {
+            const input    = document.getElementById(inputId);
+            const dropdown = document.getElementById(dropdownId);
+            const tag      = document.getElementById(tagId);
+
+            input.addEventListener('input', () => {
+                setCode(null);
+                input.classList.remove('has-selection');
+                tag.innerHTML = 'Start typing to search';
+                buildDropdown(input.value, dropdownId, (code, name) => {
+                    input.value = name;
+                    input.classList.add('has-selection');
+                    setCode(code);
+                    tag.innerHTML = `<span class="confirmed">✓ ${name}</span> &nbsp;·&nbsp; Code: ${code}`;
+                });
+            });
+
+            input.addEventListener('keydown', e => {
+                if (e.key === 'Escape') dropdown.style.display = 'none';
+                if (e.key === 'Enter')  processRouteLookup();
+            });
+
+            input.addEventListener('blur', () => {
+                setTimeout(() => { dropdown.style.display = 'none'; }, 150);
+            });
+
+            input.addEventListener('focus', () => {
+                if (input.value && !input.classList.contains('has-selection')) {
+                    buildDropdown(input.value, dropdownId, (code, name) => {
+                        input.value = name;
+                        input.classList.add('has-selection');
+                        setCode(code);
+                        tag.innerHTML = `<span class="confirmed">✓ ${name}</span> &nbsp;·&nbsp; Code: ${code}`;
+                    });
+                }
+            });
+        }
+
+        wireSearch('startSearch', 'startDropdown', 'startTag', code => { selectedStart = code; });
+        wireSearch('endSearch',   'endDropdown',   'endTag',   code => { selectedEnd   = code; });
+
+        function swapStations() {
+            const startInput = document.getElementById('startSearch');
+            const endInput   = document.getElementById('endSearch');
+            const startTag   = document.getElementById('startTag');
+            const endTag     = document.getElementById('endTag');
+
+            const tmpCode = selectedStart;
+            const tmpName = startInput.value;
+            const tmpTag  = startTag.innerHTML;
+            const tmpCls  = startInput.classList.contains('has-selection');
+
+            selectedStart = selectedEnd;
+            startInput.value = endInput.value;
+            startTag.innerHTML = endTag.innerHTML;
+            endInput.classList.contains('has-selection')
+                ? startInput.classList.add('has-selection')
+                : startInput.classList.remove('has-selection');
+
+            selectedEnd = tmpCode;
+            endInput.value = tmpName;
+            endTag.innerHTML = tmpTag;
+            tmpCls
+                ? endInput.classList.add('has-selection')
+                : endInput.classList.remove('has-selection');
+        }
+
+        function processRouteLookup() {
+            const output = document.getElementById('routeDisplayOutput');
+            const header = document.getElementById('itineraryHeader');
+            const meta   = document.getElementById('routeMeta');
+
+            if (!selectedStart || !selectedEnd) {
+                header.style.display = 'none';
+                output.innerHTML = `<div class="error-box">⚠️ Please select both an origin and destination from the dropdown.</div>`;
+                return;
+            }
+            if (selectedStart === selectedEnd) {
+                header.style.display = 'none';
+                output.innerHTML = `<div class="error-box">⚠️ Origin and destination are the same station.</div>`;
+                return;
+            }
+
+            header.style.display = 'none';
+            output.innerHTML = `
+                <div class="loading-box">
+                    <div class="spinner"></div>
+                    Calculating optimal route…
+                </div>`;
+
+            fetch('/api/route?start=' + encodeURIComponent(selectedStart) + '&end=' + encodeURIComponent(selectedEnd))
+                .then(res => res.text())
+                .then(text => {
+                    if (text.startsWith('❌')) {
+                        output.innerHTML = `<div class="error-box">${text}</div>`;
+                        return;
+                    }
+
+                    const allLines = text.split('\n').filter(l => l.trim().length > 0);
+                    const stops = allLines.filter(l =>
+                        !l.includes('ROUTE FOUND') && !l.includes('OPTIMAL ROUTE') && l.trim() !== ''
+                    );
+
+                    let transfers = 0;
+                    let prevTok = null;
+                    const tokensPerStop = stops.map(l => {
+                        const m = l.match(/\(([^)]+)\)/);
+                        const lineStr = m ? m[1].replace(' Line', '').trim() : 'S';
+                        return getToken(lineStr);
+                    });
+                    tokensPerStop.forEach((tok, i) => {
+                        if (i > 0 && prevTok && tok !== prevTok && tok !== 'S' && prevTok !== 'S') transfers++;
+                        prevTok = tok;
+                    });
+                    const estMin = stops.length * 2 + transfers * 4;
+
+                    header.style.display = 'block';
+                    meta.innerHTML = `<strong>${stops.length} stops</strong> &nbsp;·&nbsp; ~${estMin} min estimated &nbsp;·&nbsp; ${transfers} transfer${transfers !== 1 ? 's' : ''}`;
+
+                    let html = '<div class="timeline">';
+                    let prevToken = null;
+
+                    stops.forEach((lineText, i) => {
+                        const isFirst = i === 0;
+                        const isLast  = i === stops.length - 1;
+
+                        const matchLine = lineText.match(/\(([^)]+)\)/);
+                        const lineStr   = matchLine ? matchLine[1].replace(' Line', '').trim() : 'S';
+                        const tok       = getToken(lineStr);
+                        const bg        = getBgColor(tok);
+                        const fg        = getTextColor(tok);
+
+                        const rawLabel = lineText
+                            .replace(/\[BOARD\]|\[ARRIVE\]|->|↳/g, '')
+                            .split('(')[0].trim()
+                            .replace(/([a-zA-Z])([0-9])/g, '$1 $2');
+
+                        if (prevToken !== null && tok !== prevToken && tok !== 'S' && prevToken !== 'S') {
+                            const tBg = getBgColor(tok);
+                            const tFg = getTextColor(tok);
+                            html += `
+                                <div class="transfer-row">
+                                    <span class="transfer-pill" style="background:${tBg}; color:${tFg};">${tok}</span>
+                                    Transfer to ${tok} line
+                                </div>`;
+                        }
+                        prevToken = tok;
+
+                        const statusClass = isFirst ? 'boarding' : isLast ? 'destination' : '';
+                        const statusText  = isFirst ? 'Boarding here' : isLast ? 'Your destination' : 'Stop';
+
+                        html += `
+                            <div class="timeline-item">
+                                <div class="line-badge" style="background:${bg}; color:${fg};">${tok}</div>
+                                <div class="station-details">
+                                    ${rawLabel}
+                                    <div class="station-status ${statusClass}">${statusText}</div>
+                                </div>
+                            </div>`;
+                    });
+
+                    html += '</div>';
+                    output.innerHTML = html;
+                })
+                .catch(() => {
+                    header.style.display = 'none';
+                    output.innerHTML = `<div class="error-box">❌ Server connection failed. Make sure subwayBack is running.</div>`;
+                });
+        }
+    </script>
+</body>
+</html>
